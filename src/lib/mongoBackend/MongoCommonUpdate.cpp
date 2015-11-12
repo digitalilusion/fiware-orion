@@ -1158,6 +1158,7 @@ static bool addTriggeredSubscriptions_withCache
   /* Note the $or on entityType, to take into account matching in subscriptions with no entity type. Only
    * subscriptions for no pattern entities are queried, subscriptions for pattern entities are searched
    * in the cache */
+#if PERFORMANCE_HACK
   BSONObj query = BSON(
                 entIdQ << entityId <<
                 "$or" << BSON_ARRAY(
@@ -1231,7 +1232,7 @@ static bool addTriggeredSubscriptions_withCache
       subs.insert(std::pair<string, TriggeredSubscription*>(subIdStr, trigs));
     }
   }
-
+#endif
 
   //
   // Now, take the 'patterned subscriptions' from the Subscription Cache and add more TriggeredSubscription to subs
@@ -1629,6 +1630,7 @@ static bool processSubscriptions
                                                  tenant,
                                                  xauthToken))
     {
+#if PERFORMANCE_HACK
       BSONObj query = BSON("_id" << OID(mapSubId));
       BSONObj update = BSON("$set" << BSON(CSUB_LASTNOTIFICATION << (long long) getCurrentTime()) <<
                             "$inc" << BSON(CSUB_COUNT << 1));
@@ -1672,6 +1674,7 @@ static bool processSubscriptions
       {
         ret = false;
       }
+#endif
     }
 
     /* Release object created dynamically (including the value in the map created by addTriggeredSubscriptions */
