@@ -27,6 +27,7 @@
 
 #include <pthread.h>
 
+#include "common/clockFunctions.h"
 #include "common/statistics.h"
 #include "logMsg/logMsg.h"
 #include "logMsg/traceLevels.h"
@@ -74,9 +75,18 @@ static void *workerFunc(void* pSyncQ)
 
   for (;;)
   {
-    SenderThreadParams *params =  queue->pop();
+    SenderThreadParams* params = queue->pop();
+    struct timespec     now;
+    struct timespec     howlong;
+    size_t              estimatedQSize;
 
     QueueStatistics::incOut();
+    clock_gettime(CLOCK_REALTIME, &now);
+    clock_difftime(&now, &params->timeStamp, &howlong);
+    estimatedQSize = queue->size();
+    QueueStatistics::addTimeInQWithSize(&howlong, estimatedQSize);
+
+
     strncpy(transactionId, params->transactionId, sizeof(transactionId));
 
     LM_T(LmtNotifier, ("worker sending to: host='%s', port=%d, verb=%s, tenant='%s', service-path: '%s', xauthToken: '%s', path='%s', content-type: %s",
@@ -89,32 +99,42 @@ static void *workerFunc(void* pSyncQ)
                        params->resource.c_str(),
                        params->content_type.c_str()));
 
-    std::string r =  httpRequestSendWithCurl(curl, params->ip,
-                                     params->port,
-                                     params->protocol,
-                                     params->verb,
-                                     params->tenant,
-                                     params->servicePath,
-                                     params->xauthToken,
-                                     params->resource,
-                                     params->content_type,
-                                     params->content,
-                                     true,
-                                     NOTIFICATION_WAIT_MODE);
-
-    if ((r != "") && (r != "error"))
+    if (simulatedNotification)
     {
-      statisticsUpdate(NotifyContextSent, params->format);
+      LM_T(LmtNotifier, ("simulatedNotification is 'true', skipping outgoing request"));
+      __sync_fetch_and_add(&noOfSimulatedNotifications, 1);
     }
+    else // we'll send the notification
+    {
+      std::string r =  httpRequestSendWithCurl(curl, params->ip,
+                                       params->port,
+                                       params->protocol,
+                                       params->verb,
+                                       params->tenant,
+                                       params->servicePath,
+                                       params->xauthToken,
+                                       params->resource,
+                                       params->content_type,
+                                       params->content,
+                                       true,
+                                       NOTIFICATION_WAIT_MODE);
 
-    // FIXME: These counters should be incremented in the other notification modes
-    if (r != "error" && r != "")
-    {
-      QueueStatistics::incSentOK();
-    }
-    else
-    {
-      QueueStatistics::incSentError();
+      if ((r != "") && (r != "error"))
+      {
+        statisticsUpdate(NotifyContextSent, params->format);
+      }
+
+      // FIXME: ok and error counter should be incremented in the other notification modes (generalizing the concept, i.e.
+      // not as member of QueueStatistics:: which seems to be tied to just the threadpool notification mode)
+      if (r != "error" && r != "")
+      {
+        QueueStatistics::incSentOK();
+      }
+      else
+      {
+        QueueStatistics::incSentError();
+      }
+
     }
 
     // Free params memory

@@ -44,6 +44,9 @@
 #include "logMsg/logMsg.h"
 #include "logMsg/traceLevels.h"
 
+#include "common/statistics.h"
+#include "common/clockFunctions.h"
+
 #include "ngsi/Request.h"
 #include "ngsi/ParseData.h"
 
@@ -56,6 +59,7 @@
 
 using boost::property_tree::ptree;
 using namespace orion;
+
 
 
 /* ****************************************************************************
@@ -367,7 +371,6 @@ static std::string jsonParse
   int                         noOfChildren = subtree.size();
   if ((isCompoundPath(path.c_str()) == true) && (nodeValue == "") && (noOfChildren != 0))
   {
-    std::string s;
 
     LM_T(LmtCompoundValue, ("Calling eatCompound for '%s'", path.c_str()));
     eatCompound(ciP, NULL, v, "");
@@ -428,6 +431,13 @@ std::string jsonParse
   ptree              tree;
   ptree              subtree;
   std::string        path;
+  struct timespec    start;
+  struct timespec    end;
+
+  if (reqTimeStatistics)
+  {
+    clock_gettime(CLOCK_REALTIME, &start);
+  }
 
   ss << content;
   read_json(ss, subtree);
@@ -443,6 +453,12 @@ std::string jsonParse
       LM_W(("Bad Input (JSON Parse error: '%s')", res.c_str()));
       return res;
     }
+  }
+
+  if (reqTimeStatistics)
+  {
+    clock_gettime(CLOCK_REALTIME, &end);
+    clock_difftime(&end, &start, &threadLastTimeStat.jsonV1ParseTime);
   }
 
   return "OK";
