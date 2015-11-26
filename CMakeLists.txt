@@ -52,7 +52,7 @@ execute_process(COMMAND            sh ../scripts/rapidxmlVersion.sh
 #           [ and 15 log macros more, of which only LM_T is used by the broker.
 #             The important ones: LM_W, LM_E, LM_X, LM_I are all kept as is ]
 #         comment the following line
-add_definitions(-DLM_ON)
+#add_definitions(-DLM_ON)
 
 add_definitions(-fPIC)
 # add_definitions(-fstack-check -fstack-protector)
